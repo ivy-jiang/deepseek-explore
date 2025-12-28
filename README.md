@@ -65,7 +65,8 @@ python inference.py
 ```text
 --- Recommendation ---
 Action: HOLD
-Reasoning: Model suggests staying on the sidelines.
+LLM Insight: Sentiment Analysis: The market sentiment is generally positive...
+Q-Values: [[519.2, 509.3, 490.7]]
 ```
 
 ---

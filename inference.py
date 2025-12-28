@@ -60,25 +60,39 @@ def get_latest_recommendation():
 
     agent.eval()
     
-    # --- Inference ---
+    # --- Inference (Decision) ---
     text_tokens = tokenizer(text_state, return_tensors="pt", truncation=True, max_length=128)
     numeric_tensor = torch.tensor([numeric_state], dtype=torch.float32)
     
     with torch.no_grad():
         q_values = agent(text_tokens.input_ids, text_tokens.attention_mask, numeric_tensor)
         action = torch.argmax(q_values).item()
-        
+
+    # --- Generation (Explanation) ---
+    # Ask DeepSeek to explain the situation verbally
+    prompt = f"{text_state}\nBased on this data, provide a brief 1-sentence market sentiment analysis."
+    gen_inputs = tokenizer(prompt, return_tensors="pt")
+    with torch.no_grad():
+        gen_outputs = base_model.generate(**gen_inputs, max_new_tokens=50, pad_token_id=tokenizer.eos_token_id)
+    
+    llm_explanation = tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
+    # Extract just the new part (simple heuristic)
+    llm_explanation = llm_explanation.replace(prompt, "").strip().split("\n")[0]
+
     actions = ["HOLD", "BUY", "SELL"]
+    action_str = actions[action]
+    
     print("\n--- Recommendation ---")
-    print(f"Action: {actions[action]}")
+    print(f"Action: {action_str}")
+    print(f"LLM Insight: {llm_explanation}")
     print(f"Q-Values: {q_values.numpy()}")
     
-    if action == 1:
-        print("Reasoning: Model predicts buying now will maximize future reward.")
-    elif action == 2:
-        print("Reasoning: Model predicts selling now is optimal to avoid loss or take profit.")
-    else:
-        print("Reasoning: Model suggests staying on the sidelines.")
+    # --- Log to Tracker ---
+    log_entry = f"| {df_weekly.index[last_idx].date()} | {action_str} | ${raw_row['QQQ']:.2f} | {llm_explanation} | {q_values.detach().numpy().tolist()} |\n"
+    
+    with open("trade_tracker.md", "a") as f:
+        f.write(log_entry)
+    print("Logged to trade_tracker.md")
 
 if __name__ == "__main__":
     get_latest_recommendation()
