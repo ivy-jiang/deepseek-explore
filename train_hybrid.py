@@ -18,7 +18,7 @@ EPSILON_DECAY = 0.995
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 32
 MEMORY_SIZE = 2000
-EPISODES = 5 # Keep low for demo speed, increase for real results
+EPISODES = 1 # Keep low for demo speed, increase for real results
 
 # --- Data Loading & Preprocessing ---
 def load_and_process_data(filepath):
@@ -127,34 +127,8 @@ class RealMarketEnv:
         
         return self._get_state(), reward, done, new_value
 
-# --- Agent ---
-class HybridAgent(nn.Module):
-    def __init__(self, base_model, numeric_dim, hidden_size=2048):
-        super().__init__()
-        self.base_model = base_model
-        # Freeze LLM
-        for param in self.base_model.parameters():
-            param.requires_grad = False
-            
-        # Input: LLM Embedding (2048) + Numeric Features (7) + Portfolio (2)
-        self.fc1 = nn.Linear(hidden_size + numeric_dim, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 3) # Q-Values
-        self.relu = nn.ReLU()
-        
-    def forward(self, input_ids, attention_mask, numeric_input):
-        # 1. LLM Path
-        with torch.no_grad():
-            outputs = self.base_model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
-            text_emb = outputs.hidden_states[-1][:, -1, :] # [Batch, 2048]
-            
-        # 2. Combine
-        x = torch.cat([text_emb.float(), numeric_input], dim=1)
-        
-        # 3. MLP Path
-        x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        return self.fc3(x)
+from agent import HybridAgent
+
 
 # --- Main ---
 if __name__ == "__main__":
@@ -232,3 +206,7 @@ if __name__ == "__main__":
             epsilon *= EPSILON_DECAY
             
     print("\nTraining Complete.")
+    
+    # Save Model
+    torch.save(agent.state_dict(), "hybrid_model.pth")
+    print("Model weights saved to hybrid_model.pth")

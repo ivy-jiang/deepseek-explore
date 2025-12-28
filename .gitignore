@@ -14,3 +14,4 @@ env/
 
 # Mac
 .DS_Store
+*.pth
