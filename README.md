@@ -56,6 +56,8 @@ python train_hybrid.py
 ```
 *Output: `hybrid_model.pth` (Saved Model Weights)*
 
+> **Note**: The `hybrid_model.pth` file is **not included** in this repository because it is too large (>2GB). You **must** run `python train_hybrid.py` locally to generate the weights before running inference.
+
 ### 4. Live Inference
 Get a trading recommendation based on the latest available data point using the trained model:
 ```bash
