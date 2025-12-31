@@ -1,6 +1,8 @@
 import torch
 import pandas as pd
 import numpy as np
+import csv
+import os
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from agent import HybridAgent
 from train_hybrid import load_and_process_data # Reuse data processing
@@ -70,14 +72,14 @@ def get_latest_recommendation():
 
     # --- Generation (Explanation) ---
     # Ask DeepSeek to explain the situation verbally
-    prompt = f"{text_state}\nBased on this data, provide a brief 1-sentence market sentiment analysis."
+    prompt = f"{text_state}\nBased on this data, provide a brief market sentiment analysis."
     gen_inputs = tokenizer(prompt, return_tensors="pt")
     with torch.no_grad():
-        gen_outputs = base_model.generate(**gen_inputs, max_new_tokens=50, pad_token_id=tokenizer.eos_token_id)
+        gen_outputs = base_model.generate(**gen_inputs, max_new_tokens=200, pad_token_id=tokenizer.eos_token_id)
     
     llm_explanation = tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
-    # Extract just the new part (simple heuristic)
-    llm_explanation = llm_explanation.replace(prompt, "").strip().split("\n")[0]
+    # Extract just the new part
+    llm_explanation = llm_explanation.replace(prompt, "").strip()
 
     actions = ["HOLD", "BUY", "SELL"]
     action_str = actions[action]
@@ -87,12 +89,23 @@ def get_latest_recommendation():
     print(f"LLM Insight: {llm_explanation}")
     print(f"Q-Values: {q_values.numpy()}")
     
-    # --- Log to Tracker ---
-    log_entry = f"| {df_weekly.index[last_idx].date()} | {action_str} | ${raw_row['QQQ']:.2f} | {llm_explanation} | {q_values.detach().numpy().tolist()} |\n"
+    # --- Log to Tracker (CSV) ---
+    csv_file = "trade_tracker.csv"
+    file_exists = os.path.isfile(csv_file)
     
-    with open("trade_tracker.md", "a") as f:
-        f.write(log_entry)
-    print("Logged to trade_tracker.md")
+    with open(csv_file, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Date", "Action", "Price", "LLM_Insight", "Q_Values"])
+        
+        writer.writerow([
+            df_weekly.index[last_idx].date(),
+            action_str,
+            f"{raw_row['QQQ']:.2f}",
+            llm_explanation,
+            q_values.detach().numpy().tolist()
+        ])
+    print(f"Logged to {csv_file}")
 
 if __name__ == "__main__":
     get_latest_recommendation()
